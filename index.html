@@ -20,7 +20,8 @@ body.light{
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
 html,body{height:100%;overflow:hidden;font-family:Inter,"Roboto Flex",Roboto,system-ui,sans-serif}
 body{background:radial-gradient(ellipse at 50% 40%,var(--bg1) 0%,var(--bg2) 75%);color:var(--fg);transition:background .6s,color .6s}
-.app{position:fixed;inset:0;display:flex;flex-direction:column;
+#root{position:fixed;inset:0;display:flex}
+.app{position:relative;flex:1;min-width:0;height:100%;display:flex;flex-direction:column;
   padding:max(4vmin,env(safe-area-inset-top)) max(6vmin,env(safe-area-inset-right)) max(4vmin,env(safe-area-inset-bottom)) max(6vmin,env(safe-area-inset-left))}
 .top{display:flex;justify-content:space-between;align-items:center;font-size:clamp(11px,3.4vmin,30px);font-weight:600;letter-spacing:.08em;color:var(--faint)}
 .chip{display:flex;align-items:center;gap:.5em}
@@ -40,6 +41,18 @@ body{background:radial-gradient(ellipse at 50% 40%,var(--bg1) 0%,var(--bg2) 75%)
 .hint{position:fixed;left:50%;bottom:12vmin;transform:translateX(-50%);background:rgba(0,0,0,.75);color:#fff;
   font-size:clamp(12px,3.4vmin,26px);padding:.6em 1.1em;border-radius:2em;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
 .hint.show{opacity:1}
+/* turn-by-turn card (shown while Google Maps is navigating) */
+#nav{display:none;flex:0 0 58%;height:100%;padding:max(3vmin,env(safe-area-inset-top)) max(3vmin,env(safe-area-inset-right)) max(3vmin,env(safe-area-inset-bottom)) 0}
+body.navon #nav{display:flex}
+.navcard{flex:1;min-width:0;border-radius:4vmin;background:#0f6e44;color:#fff;display:flex;flex-direction:column;padding:5vmin 5vmin 3.5vmin;gap:2vmin;overflow:hidden;box-shadow:0 1vmin 4vmin rgba(0,0,0,.25)}
+.navmain{flex:1;display:flex;align-items:center;gap:5vmin;min-height:0}
+#navIcon{width:30vmin;height:30vmin;flex:none;object-fit:contain}
+.navtxt{min-width:0}
+#navDist{font-size:15vmin;font-weight:800;line-height:1;letter-spacing:-.02em}
+#navText{font-size:7vmin;font-weight:600;line-height:1.15;margin-top:2vmin;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+#navEta{font-size:4.6vmin;font-weight:500;opacity:.85;border-top:1px solid rgba(255,255,255,.22);padding-top:2.6vmin;display:flex;justify-content:space-between;gap:1em}
+#navEta span:last-child{opacity:.8}
+#navAccess{margin-left:auto;color:var(--warn);display:none}
 .start{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4vmin;
   background:var(--bg2);z-index:10;text-align:center;padding:6vmin}
 .start h1{font-size:clamp(20px,7vmin,64px);font-weight:800}
@@ -49,6 +62,7 @@ body{background:radial-gradient(ellipse at 50% 40%,var(--bg1) 0%,var(--bg2) 75%)
 </style>
 </head>
 <body>
+<div id="root">
 <div class="app" id="app">
   <div class="top">
     <div class="chip"><span class="dot" id="srcDot"></span><span id="src">GPS</span></div>
@@ -64,8 +78,18 @@ body{background:radial-gradient(ellipse at 50% 40%,var(--bg1) 0%,var(--bg2) 75%)
       <div id="pct">– %</div>
       <div id="range">– mi</div>
     </div>
-    <div class="status"><span class="dot" id="carDot"></span><span id="carStatus">Car not connected · GPS mode</span></div>
+    <div class="status"><span class="dot" id="carDot"></span><span id="carStatus">Car not connected · GPS mode</span><span id="navAccess">Turn card off · tap to enable</span></div>
   </div>
+</div>
+<div id="nav">
+  <div class="navcard" id="navCard">
+    <div class="navmain">
+      <img id="navIcon" alt="">
+      <div class="navtxt"><div id="navDist"></div><div id="navText"></div></div>
+    </div>
+    <div id="navEta"><span id="navSub"></span><span>Tap for map</span></div>
+  </div>
+</div>
 </div>
 
 <div class="start" id="start">
@@ -80,6 +104,7 @@ body{background:radial-gradient(ellipse at 50% 40%,var(--bg1) 0%,var(--bg2) 75%)
 const $ = id => document.getElementById(id);
 const qs = new URLSearchParams(location.search);
 const DEMO = qs.has('demo');
+const NATIVE = typeof window.Android !== 'undefined';   // running inside the ClusTer HUD Android app
 
 /* ---------- settings (stored per device) ---------- */
 const store = {
@@ -142,8 +167,11 @@ function onErr(e){
   $('srcDot').style.background = 'var(--bad)';
   $('src').textContent = e.code === 1 ? 'LOCATION BLOCKED' : 'NO GPS';
 }
+window.nativeFix = (la, lo, speed, acc, ts) =>
+  onFix({timestamp: ts, coords: {latitude: la, longitude: lo, speed: speed < 0 ? null : speed, accuracy: acc}});
 function startGps(){
   if (DEMO) return;
+  if (NATIVE) { try { Android.startLocation(); } catch(e){} return; }
   if (!('geolocation' in navigator)) return onErr({code:2});
   navigator.geolocation.watchPosition(onFix, onErr, {enableHighAccuracy:true, maximumAge:0, timeout:10000});
 }
@@ -202,6 +230,37 @@ function applyTheme(){
 }
 setInterval(applyTheme, 30000);
 
+/* ---------- turn-by-turn card (fed by the Android app from Google Maps' notification) ---------- */
+const ARROW = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M50 90V18M24 42l26-26 26 26" stroke="#fff" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+const isDist = s => /^\s*\d[\d.,]*\s?(m|km|yd|yds|mi|miles?|ft)\b/i.test(s || '');
+function setNav(d){
+  const on = !!(d && d.active);
+  if (on) {
+    let dist = '', instr = '';
+    if (isDist(d.title)) { dist = d.title; instr = d.text; }
+    else if (isDist(d.text)) { dist = d.text; instr = d.title; }
+    else { instr = [d.title, d.text].filter(Boolean).join(' · '); }
+    $('navDist').textContent = dist || '';
+    $('navDist').style.display = dist ? '' : 'none';
+    $('navText').textContent = instr || '';
+    $('navSub').textContent = d.sub || '';
+    $('navIcon').src = d.icon ? 'data:image/png;base64,' + d.icon : ARROW;
+  }
+  if (on !== document.body.classList.contains('navon')) {
+    document.body.classList.toggle('navon', on);
+    requestAnimationFrame(fitSpeed);
+  }
+}
+window.nativeNav = setNav;
+$('navCard').addEventListener('click', () => { if (NATIVE) try { Android.openMaps(); } catch(e){} });
+function checkNavAccess(){
+  if (!NATIVE) return;
+  let ok = true; try { ok = Android.navAccess(); } catch(e){}
+  $('navAccess').style.display = ok ? 'none' : 'inline';
+}
+$('navAccess').addEventListener('click', () => { try { Android.enableNav(); } catch(e){} });
+document.addEventListener('visibilitychange', checkNavAccess);
+
 /* ---------- interactions ---------- */
 function hint(msg){ const h = $('hint'); h.textContent = msg; h.classList.add('show'); clearTimeout(hint.t); hint.t = setTimeout(() => h.classList.remove('show'), 1600); }
 let pressT = null;
@@ -230,9 +289,11 @@ function start(){
   if (DEMO) { $('src').textContent = 'DEMO'; $('srcDot').style.background = 'var(--warn)'; }
 }
 $('go').addEventListener('click', start);
-if (DEMO || qs.has('autostart')) start();
+if (DEMO || NATIVE || qs.has('autostart')) start();
+checkNavAccess();
+if (DEMO && qs.has('nav')) setNav({active:true, title:'400 yd', text:'Turn right onto A40', sub:'18 min · 9.4 mi · 17:16'});
 
-if ('serviceWorker' in navigator) { try { navigator.serviceWorker.register('sw.js'); } catch(e){} }
+if ('serviceWorker' in navigator && location.protocol === 'https:') { try { navigator.serviceWorker.register('sw.js'); } catch(e){} }
 applyTheme(); fitSpeed(); render(); requestAnimationFrame(tick);
 })();
 </script>
