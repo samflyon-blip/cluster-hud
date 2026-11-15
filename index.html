@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0d0f12">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Speedo</title>
+<style>
+:root{
+  --bg1:#1b1e23;--bg2:#0d0f12;--fg:#f2f3f5;--muted:#9aa0a8;--faint:#5b6068;
+  --track:#2a2e34;--bar:#e8e9eb;--ok:#3ad16c;--warn:#f0b429;--bad:#e5484d;--cellb:#c9ccd1;
+}
+body.light{
+  --bg1:#ffffff;--bg2:#eceef1;--fg:#111317;--muted:#6b7079;--faint:#b4b8be;
+  --track:#d6d9de;--bar:#111317;--ok:#22b357;--warn:#c98a00;--bad:#d1343a;--cellb:#3a3e44;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+html,body{height:100%;overflow:hidden;font-family:Inter,"Roboto Flex",Roboto,system-ui,sans-serif}
+body{background:radial-gradient(ellipse at 50% 40%,var(--bg1) 0%,var(--bg2) 75%);color:var(--fg);transition:background .6s,color .6s}
+.app{position:fixed;inset:0;display:flex;flex-direction:column;
+  padding:max(4vmin,env(safe-area-inset-top)) max(6vmin,env(safe-area-inset-right)) max(4vmin,env(safe-area-inset-bottom)) max(6vmin,env(safe-area-inset-left))}
+.top{display:flex;justify-content:space-between;align-items:center;font-size:clamp(11px,3.4vmin,30px);font-weight:600;letter-spacing:.08em;color:var(--faint)}
+.chip{display:flex;align-items:center;gap:.5em}
+.dot{width:.65em;height:.65em;border-radius:50%;background:var(--faint);display:inline-block}
+.speedwrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0}
+#speed{font-weight:800;line-height:.82;letter-spacing:-.045em;font-variant-numeric:tabular-nums;white-space:nowrap;transition:opacity .4s}
+#speed.stale{opacity:.35}
+#unit{font-weight:700;color:var(--muted);letter-spacing:.2em;margin-top:.5em;font-size:clamp(12px,4.2vmin,48px);padding-left:.2em}
+.bottom{display:flex;flex-direction:column;gap:2.4vmin}
+.batt{display:flex;align-items:center;gap:3vmin;font-size:clamp(14px,5.4vmin,60px)}
+.cell{width:2.5em;height:1em;border:.07em solid var(--cellb);border-radius:.2em;position:relative;padding:.08em;flex:none}
+.cell:after{content:"";position:absolute;right:-.2em;top:.28em;width:.13em;height:.36em;background:var(--cellb);border-radius:0 .07em .07em 0}
+.cell i{display:block;height:100%;width:0;background:var(--ok);border-radius:.08em;transition:width .6s}
+#pct{font-weight:600}
+#range{margin-left:auto;color:var(--muted);font-size:.7em}
+.status{font-size:clamp(10px,2.8vmin,28px);color:var(--faint);display:flex;align-items:center;gap:.6em}
+.hint{position:fixed;left:50%;bottom:12vmin;transform:translateX(-50%);background:rgba(0,0,0,.75);color:#fff;
+  font-size:clamp(12px,3.4vmin,26px);padding:.6em 1.1em;border-radius:2em;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+.hint.show{opacity:1}
+.start{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4vmin;
+  background:var(--bg2);z-index:10;text-align:center;padding:6vmin}
+.start h1{font-size:clamp(20px,7vmin,64px);font-weight:800}
+.start p{color:var(--muted);font-size:clamp(12px,3.6vmin,28px);max-width:30em;line-height:1.4}
+.start button{font:inherit;font-size:clamp(14px,4.4vmin,36px);font-weight:700;padding:.8em 2em;border-radius:2em;border:0;background:var(--ok);color:#06210f}
+.start.hide{display:none}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="top">
+    <div class="chip"><span class="dot" id="srcDot"></span><span id="src">GPS</span></div>
+    <div class="chip" id="themeChip">AUTO</div>
+  </div>
+  <div class="speedwrap" id="speedwrap">
+    <div id="speed">0</div>
+    <div id="unit">MPH</div>
+  </div>
+  <div class="bottom">
+    <div class="batt">
+      <div class="cell"><i id="cellFill"></i></div>
+      <div id="pct">– %</div>
+      <div id="range">– mi</div>
+    </div>
+    <div class="status"><span class="dot" id="carDot"></span><span id="carStatus">Car not connected · GPS mode</span></div>
+  </div>
+</div>
+
+<div class="start" id="start">
+  <h1>Speedo</h1>
+  <p>Tap Start to allow location and keep the screen on.<br>Long-press the speed to switch Auto / Light / Dark. Tap MPH to switch units.</p>
+  <button id="go">Start</button>
+</div>
+<div class="hint" id="hint"></div>
+
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const qs = new URLSearchParams(location.search);
+const DEMO = qs.has('demo');
+
+/* ---------- settings (stored per device) ---------- */
+const store = {
+  get(k, d){ try { const v = localStorage.getItem('speedo.'+k); return v === null ? d : v; } catch(e){ return d; } },
+  set(k, v){ try { localStorage.setItem('speedo.'+k, v); } catch(e){} }
+};
+let units = store.get('units', 'mph');          // 'mph' | 'kmh'
+let themeMode = store.get('theme', 'auto');     // 'auto' | 'light' | 'dark'
+
+/* ---------- state ---------- */
+let lastFix = null, lastFixTime = 0, shownMs = 0, lat = qs.has('lat') ? +qs.get('lat') : null, lon = qs.has('lon') ? +qs.get('lon') : null;
+let accuracy = null;
+
+/* ---------- speed display ---------- */
+function toUnits(ms){ return units === 'mph' ? ms * 2.236936 : ms * 3.6; }
+function render(){
+  const v = toUnits(shownMs);
+  const n = v < 0.8 ? 0 : Math.round(v);
+  const el = $('speed');
+  if (el.textContent !== String(n)) { el.textContent = n; fitSpeed(); }
+  el.classList.toggle('stale', !DEMO && (performance.now() - lastFixTime) > 4000);
+  $('unit').textContent = units === 'mph' ? 'MPH' : 'KM/H';
+}
+function fitSpeed(){
+  const wrap = $('speedwrap'), el = $('speed');
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  // size so that 3 digits always fit; 1–2 digits keep the same size (no jumping)
+  const byW = W / (3 * 0.62);
+  const byH = H * 0.78;
+  el.style.fontSize = Math.max(20, Math.min(byW, byH)) + 'px';
+}
+addEventListener('resize', fitSpeed);
+
+/* ---------- GPS ---------- */
+function haversine(a, b){
+  const R = 6371000, r = Math.PI/180;
+  const dLat = (b.latitude - a.latitude)*r, dLon = (b.longitude - a.longitude)*r;
+  const s = Math.sin(dLat/2)**2 + Math.cos(a.latitude*r)*Math.cos(b.latitude*r)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(s));
+}
+let target = 0;
+function onFix(p){
+  const c = p.coords;
+  let ms = c.speed;
+  if ((ms === null || isNaN(ms)) && lastFix) {
+    const dt = (p.timestamp - lastFix.timestamp)/1000;
+    if (dt > 0.2) ms = haversine(lastFix.coords, c) / dt;
+  }
+  if (ms === null || isNaN(ms)) ms = 0;
+  target = ms;
+  lastFix = p; lastFixTime = performance.now();
+  lat = c.latitude; lon = c.longitude; accuracy = c.accuracy;
+  const good = accuracy < 20;
+  $('srcDot').style.background = good ? 'var(--ok)' : 'var(--warn)';
+  $('src').textContent = 'GPS ±' + Math.round(accuracy) + ' m';
+  applyTheme();
+}
+function onErr(e){
+  $('srcDot').style.background = 'var(--bad)';
+  $('src').textContent = e.code === 1 ? 'LOCATION BLOCKED' : 'NO GPS';
+}
+function startGps(){
+  if (DEMO) return;
+  if (!('geolocation' in navigator)) return onErr({code:2});
+  navigator.geolocation.watchPosition(onFix, onErr, {enableHighAccuracy:true, maximumAge:0, timeout:10000});
+}
+
+/* smooth animation towards target speed */
+let lastT = performance.now();
+function tick(t){
+  const dt = Math.min(0.2, (t - lastT)/1000); lastT = t;
+  if (DEMO) target = qs.has('speed') ? +qs.get('speed') / 2.236936 : demoSpeed(t/1000);
+  if (qs.has('speed')) shownMs = target;
+  shownMs += (target - shownMs) * (1 - Math.exp(-dt * 6));
+  render();
+  requestAnimationFrame(tick);
+}
+function demoSpeed(s){ // 0 → ~70 mph and back, with some wobble
+  const base = (Math.sin(s/6 - Math.PI/2) + 1) / 2;
+  return base * 31 + Math.sin(s*1.3) * 0.6;
+}
+
+/* ---------- auto light / dark from sun position ---------- */
+function solarElevation(date, latD, lonD){
+  const r = Math.PI/180;
+  const d = date.getTime()/86400000 + 2440587.5 - 2451545.0;
+  const g = ((357.529 + 0.98560028*d) % 360) * r;
+  const q = (280.459 + 0.98564736*d) % 360;
+  const L = (q + 1.915*Math.sin(g) + 0.020*Math.sin(2*g)) * r;
+  const e = (23.439 - 0.00000036*d) * r;
+  const ra = Math.atan2(Math.cos(e)*Math.sin(L), Math.cos(L));
+  const dec = Math.asin(Math.sin(e)*Math.sin(L));
+  const gmst = ((18.697374558 + 24.06570982441908*d) % 24) * 15 * r;
+  const H = gmst + lonD*r - ra;
+  return Math.asin(Math.sin(latD*r)*Math.sin(dec) + Math.cos(latD*r)*Math.cos(dec)*Math.cos(H)) / r;
+}
+let isLight = null;
+function nowForTheme(){
+  if (qs.has('hour')) { const d = new Date(); d.setHours(+qs.get('hour'), 0, 0, 0); return d; }
+  return new Date();
+}
+function applyTheme(){
+  let light;
+  if (themeMode === 'light') light = true;
+  else if (themeMode === 'dark') light = false;
+  else if (lat !== null) {
+    const el = solarElevation(nowForTheme(), lat, lon);
+    // switch at sunset/sunrise, with a small band to stop flicker
+    light = isLight === null ? el > -0.833 : (isLight ? el > -1.5 : el > 0);
+  } else {
+    const h = nowForTheme().getHours(); light = h >= 7 && h < 18; // until first GPS fix
+  }
+  if (light !== isLight) {
+    isLight = light;
+    document.body.classList.toggle('light', light);
+    document.querySelector('meta[name=theme-color]').content = light ? '#eceef1' : '#0d0f12';
+  }
+  $('themeChip').textContent = themeMode === 'auto' ? (light ? 'AUTO ☀' : 'AUTO ☾') : (light ? 'LIGHT' : 'DARK');
+}
+setInterval(applyTheme, 30000);
+
+/* ---------- interactions ---------- */
+function hint(msg){ const h = $('hint'); h.textContent = msg; h.classList.add('show'); clearTimeout(hint.t); hint.t = setTimeout(() => h.classList.remove('show'), 1600); }
+let pressT = null;
+$('speedwrap').addEventListener('pointerdown', () => { pressT = setTimeout(() => {
+  pressT = null;
+  themeMode = {auto:'light', light:'dark', dark:'auto'}[themeMode];
+  store.set('theme', themeMode); isLight = null; applyTheme();
+  hint('Theme: ' + themeMode.toUpperCase());
+}, 600); });
+['pointerup','pointerleave','pointercancel'].forEach(ev => $('speedwrap').addEventListener(ev, () => { clearTimeout(pressT); }));
+$('unit').addEventListener('click', e => {
+  units = units === 'mph' ? 'kmh' : 'mph'; store.set('units', units); render(); hint(units === 'mph' ? 'Miles per hour' : 'Kilometres per hour');
+});
+
+/* ---------- keep screen on ---------- */
+let wakeLock = null;
+async function keepAwake(){
+  try { if ('wakeLock' in navigator && document.visibilityState === 'visible') wakeLock = await navigator.wakeLock.request('screen'); } catch(e){}
+}
+document.addEventListener('visibilitychange', keepAwake);
+
+/* ---------- start ---------- */
+function start(){
+  $('start').classList.add('hide');
+  startGps(); keepAwake();
+  if (DEMO) { $('src').textContent = 'DEMO'; $('srcDot').style.background = 'var(--warn)'; }
+}
+$('go').addEventListener('click', start);
+if (DEMO || qs.has('autostart')) start();
+
+applyTheme(); fitSpeed(); render(); requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
