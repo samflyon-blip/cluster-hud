@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#0d0f12">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Speedo</title>
+<title>ClusTer HUD</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
 <style>
 :root{
   --bg1:#1b1e23;--bg2:#0d0f12;--fg:#f2f3f5;--muted:#9aa0a8;--faint:#5b6068;
@@ -67,7 +69,7 @@ body{background:radial-gradient(ellipse at 50% 40%,var(--bg1) 0%,var(--bg2) 75%)
 </div>
 
 <div class="start" id="start">
-  <h1>Speedo</h1>
+  <h1>ClusTer HUD</h1>
   <p>Tap Start to allow location and keep the screen on.<br>Long-press the speed to switch Auto / Light / Dark. Tap MPH to switch units.</p>
   <button id="go">Start</button>
 </div>
@@ -229,6 +231,7 @@ function start(){
 $('go').addEventListener('click', start);
 if (DEMO || qs.has('autostart')) start();
 
+if ('serviceWorker' in navigator) { try { navigator.serviceWorker.register('sw.js'); } catch(e){} }
 applyTheme(); fitSpeed(); render(); requestAnimationFrame(tick);
 })();
 </script>
