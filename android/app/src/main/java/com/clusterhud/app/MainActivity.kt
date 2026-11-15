@@ -12,6 +12,7 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
+import android.net.Uri
 import android.provider.Settings
 import android.view.WindowInsets
 import android.view.WindowInsetsController
@@ -53,20 +54,35 @@ class MainActivity : Activity() {
         setContentView(web)
         web.loadUrl("file:///android_asset/index.html")
 
-        NavBus.listener = { json -> runOnUiThread { pushNav(json) } }
+        NavBus.listener = { json -> runOnUiThread { onNavChanged(json) } }
         askLocationPermission()
     }
 
+    private var resumed = false
+    private var navWasActive = false
+
     override fun onResume() {
         super.onResume()
+        resumed = true
         hideSystemBars()
         if (locationOn) startLocation()
         if (pageReady) web.evaluateJavascript("document.dispatchEvent(new Event('visibilitychange'))", null)
     }
 
+    override fun onStart() {
+        super.onStart()
+        Hud.visible = true
+    }
+
+    override fun onStop() {
+        Hud.visible = false
+        locationManager.removeUpdates(locationListener)   // stays on while visible in split screen
+        super.onStop()
+    }
+
     override fun onPause() {
         super.onPause()
-        locationManager.removeUpdates(locationListener)
+        resumed = false
     }
 
     override fun onDestroy() {
@@ -121,10 +137,26 @@ class MainActivity : Activity() {
         web.evaluateJavascript("window.nativeNav && window.nativeNav($json)", null)
     }
 
-    private fun navAccessGranted(): Boolean {
+    /** Google Maps started navigating while the speedo is on screen: open Maps beside it. */
+    private fun onNavChanged(json: JSONObject) {
+        pushNav(json)
+        val active = json.optBoolean("active")
+        if (active && !navWasActive && Hud.visible && !isInMultiWindowMode) openMapsBeside()
+        navWasActive = active
+    }
+
+    fun openMapsBeside() {
+        val i = packageManager.getLaunchIntentForPackage(NavListener.MAPS) ?: return
+        i.addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT or Intent.FLAG_ACTIVITY_NEW_TASK)
+        try { startActivity(i) } catch (e: Exception) { /* Maps not installed */ }
+    }
+
+    private fun listenerGranted(): Boolean {
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         return nm.isNotificationListenerAccessGranted(ComponentName(this, NavListener::class.java))
     }
+
+    private fun navAccessGranted(): Boolean = listenerGranted() && Settings.canDrawOverlays(this)
 
     inner class Bridge {
         @JavascriptInterface
@@ -135,6 +167,11 @@ class MainActivity : Activity() {
 
         @JavascriptInterface
         fun enableNav() = runOnUiThread {
+            if (listenerGranted()) {
+                // Step 2: allow ClusTer HUD to pop up beside Maps when navigation starts
+                startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+                return@runOnUiThread
+            }
             val detail = Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
                 .putExtra(
                     Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
@@ -146,9 +183,6 @@ class MainActivity : Activity() {
         }
 
         @JavascriptInterface
-        fun openMaps() = runOnUiThread {
-            val i = packageManager.getLaunchIntentForPackage(NavListener.MAPS)
-            if (i != null) startActivity(i)
-        }
+        fun openMaps() = runOnUiThread { openMapsBeside() }
     }
 }

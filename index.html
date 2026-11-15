@@ -52,6 +52,8 @@ body.navon #nav{display:flex}
 #navText{font-size:7vmin;font-weight:600;line-height:1.15;margin-top:2vmin;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 #navEta{font-size:4.6vmin;font-weight:500;opacity:.85;border-top:1px solid rgba(255,255,255,.22);padding-top:2.6vmin;display:flex;justify-content:space-between;gap:1em}
 #navEta span:last-child{opacity:.8}
+#mapBtn{display:none;cursor:pointer;color:var(--muted)}
+body.native #mapBtn{display:flex}
 #navAccess{display:none;background:var(--warn);color:#111;font-weight:700;letter-spacing:.04em;padding:.5em 1.1em;border-radius:2em;cursor:pointer}
 .start{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4vmin;
   background:var(--bg2);z-index:10;text-align:center;padding:6vmin}
@@ -66,7 +68,8 @@ body.navon #nav{display:flex}
 <div class="app" id="app">
   <div class="top">
     <div class="chip"><span class="dot" id="srcDot"></span><span id="src">GPS</span></div>
-    <div id="navAccess">ENABLE TURN CARD</div>
+    <div id="navAccess">ENABLE AUTO MAP</div>
+    <div class="chip" id="mapBtn">MAP ▸</div>
     <div class="chip" id="themeChip">AUTO</div>
   </div>
   <div class="speedwrap" id="speedwrap">
@@ -234,7 +237,9 @@ setInterval(applyTheme, 30000);
 /* ---------- turn-by-turn card (fed by the Android app from Google Maps' notification) ---------- */
 const ARROW = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M50 90V18M24 42l26-26 26 26" stroke="#fff" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>');
 const isDist = s => /^\s*\d[\d.,]*\s?(m|km|yd|yds|mi|miles?|ft)\b/i.test(s || '');
+const SHOW_CARD = qs.has('card');   // turn card switched off: Google Maps itself opens beside the speedo instead
 function setNav(d){
+  if (!SHOW_CARD) return;
   const on = !!(d && d.active);
   if (on) {
     let dist = '', instr = '';
@@ -259,6 +264,8 @@ function checkNavAccess(){
   let ok = true; try { ok = Android.navAccess(); } catch(e){}
   $('navAccess').style.display = ok ? 'none' : 'inline';
 }
+$('mapBtn').addEventListener('click', () => { try { Android.openMaps(); } catch(e){} });
+document.body.classList.toggle('native', NATIVE);
 $('navAccess').addEventListener('click', () => { try { Android.enableNav(); } catch(e){} });
 document.addEventListener('visibilitychange', checkNavAccess);
 
