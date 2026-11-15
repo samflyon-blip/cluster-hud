@@ -46,7 +46,7 @@ body{background:radial-gradient(ellipse at 50% 40%,var(--bg1) 0%,var(--bg2) 75%)
 body.navon #nav{display:flex}
 .navcard{flex:1;min-width:0;border-radius:4vmin;background:#0f6e44;color:#fff;display:flex;flex-direction:column;padding:5vmin 5vmin 3.5vmin;gap:2vmin;overflow:hidden;box-shadow:0 1vmin 4vmin rgba(0,0,0,.25)}
 .navmain{flex:1;display:flex;align-items:center;gap:5vmin;min-height:0}
-#navIcon{width:30vmin;height:30vmin;flex:none;object-fit:contain}
+#navIcon{width:30vmin;height:30vmin;flex:none;object-fit:contain;filter:brightness(0) invert(1)} /* Maps sends a dark arrow: force white */
 .navtxt{min-width:0}
 #navDist{font-size:15vmin;font-weight:800;line-height:1;letter-spacing:-.02em}
 #navText{font-size:7vmin;font-weight:600;line-height:1.15;margin-top:2vmin;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
