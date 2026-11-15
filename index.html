@@ -52,7 +52,7 @@ body.navon #nav{display:flex}
 #navText{font-size:7vmin;font-weight:600;line-height:1.15;margin-top:2vmin;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 #navEta{font-size:4.6vmin;font-weight:500;opacity:.85;border-top:1px solid rgba(255,255,255,.22);padding-top:2.6vmin;display:flex;justify-content:space-between;gap:1em}
 #navEta span:last-child{opacity:.8}
-#navAccess{margin-left:auto;color:var(--warn);display:none}
+#navAccess{display:none;background:var(--warn);color:#111;font-weight:700;letter-spacing:.04em;padding:.5em 1.1em;border-radius:2em;cursor:pointer}
 .start{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4vmin;
   background:var(--bg2);z-index:10;text-align:center;padding:6vmin}
 .start h1{font-size:clamp(20px,7vmin,64px);font-weight:800}
@@ -66,6 +66,7 @@ body.navon #nav{display:flex}
 <div class="app" id="app">
   <div class="top">
     <div class="chip"><span class="dot" id="srcDot"></span><span id="src">GPS</span></div>
+    <div id="navAccess">ENABLE TURN CARD</div>
     <div class="chip" id="themeChip">AUTO</div>
   </div>
   <div class="speedwrap" id="speedwrap">
@@ -78,7 +79,7 @@ body.navon #nav{display:flex}
       <div id="pct">– %</div>
       <div id="range">– mi</div>
     </div>
-    <div class="status"><span class="dot" id="carDot"></span><span id="carStatus">Car not connected · GPS mode</span><span id="navAccess">Turn card off · tap to enable</span></div>
+    <div class="status"><span class="dot" id="carDot"></span><span id="carStatus">Car not connected · GPS mode</span></div>
   </div>
 </div>
 <div id="nav">
@@ -290,6 +291,7 @@ function start(){
 }
 $('go').addEventListener('click', start);
 if (DEMO || NATIVE || qs.has('autostart')) start();
+if (!NATIVE && !DEMO) $('carStatus').textContent = 'Web version · no turn card';
 checkNavAccess();
 if (DEMO && qs.has('nav')) setNav({active:true, title:'400 yd', text:'Turn right onto A40', sub:'18 min · 9.4 mi · 17:16'});
 
