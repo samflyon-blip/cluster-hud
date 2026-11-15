@@ -1,5 +1,5 @@
 // Minimal service worker: makes the app installable and lets it open without signal.
-const CACHE = 'cluster-v5';
+const CACHE = 'cluster-v6';
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'])));
   self.skipWaiting();
