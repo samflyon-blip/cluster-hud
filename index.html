@@ -106,9 +106,10 @@ function render(){
 function fitSpeed(){
   const wrap = $('speedwrap'), el = $('speed');
   const W = wrap.clientWidth, H = wrap.clientHeight;
-  // size so that 3 digits always fit; 1–2 digits keep the same size (no jumping)
-  const byW = W / (3 * 0.62);
-  const byH = H * 0.78;
+  // size for 2 digits (0–99 stays one size); only shrinks above 99
+  const digits = Math.max(2, el.textContent.length);
+  const byW = W * 0.96 / (digits * 0.62);
+  const byH = H * 0.9;
   el.style.fontSize = Math.max(20, Math.min(byW, byH)) + 'px';
 }
 addEventListener('resize', fitSpeed);
