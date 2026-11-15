@@ -12,7 +12,6 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
-import android.net.Uri
 import android.provider.Settings
 import android.view.WindowInsets
 import android.view.WindowInsetsController
@@ -156,7 +155,7 @@ class MainActivity : Activity() {
         return nm.isNotificationListenerAccessGranted(ComponentName(this, NavListener::class.java))
     }
 
-    private fun navAccessGranted(): Boolean = listenerGranted() && Settings.canDrawOverlays(this)
+    private fun navAccessGranted(): Boolean = listenerGranted()
 
     inner class Bridge {
         @JavascriptInterface
@@ -167,11 +166,6 @@ class MainActivity : Activity() {
 
         @JavascriptInterface
         fun enableNav() = runOnUiThread {
-            if (listenerGranted()) {
-                // Step 2: allow ClusTer HUD to pop up beside Maps when navigation starts
-                startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
-                return@runOnUiThread
-            }
             val detail = Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
                 .putExtra(
                     Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,

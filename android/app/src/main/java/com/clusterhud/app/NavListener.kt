@@ -1,8 +1,6 @@
 package com.clusterhud.app
 
 import android.app.Notification
-import android.content.Intent
-import android.provider.Settings
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.service.notification.NotificationListenerService
@@ -64,9 +62,7 @@ class NavListener : NotificationListenerService() {
         val sub = ex.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString() ?: ""
         if (title.isEmpty() && text.isEmpty()) return
 
-        val wasActive = activeKey != null
         activeKey = sbn.key
-        if (!wasActive && !Hud.visible) showHudBesideMaps()
         val j = JSONObject()
             .put("active", true)
             .put("title", title)
@@ -74,14 +70,6 @@ class NavListener : NotificationListenerService() {
             .put("sub", sub)
         iconBase64(n)?.let { j.put("icon", it) }
         NavBus.post(j)
-    }
-
-    /** Navigation started while Maps is full screen: open the speedo beside it. */
-    private fun showHudBesideMaps() {
-        if (!Settings.canDrawOverlays(this)) return   // Android only allows this with "Appear on top"
-        val i = Intent(this, MainActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT)
-        try { startActivity(i) } catch (e: Exception) { /* ignore */ }
     }
 
     private fun iconBase64(n: Notification): String? = try {
